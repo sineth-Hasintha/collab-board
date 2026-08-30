@@ -1,1 +1,4 @@
-node_modules\n.env\ndist\nbuild
+node_modules/
+server/node_modules/
+client/node_modules/
+.env

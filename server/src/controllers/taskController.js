@@ -1,39 +1,13 @@
-let tasks = [
-  {
-    id: 'task-1',
-    title: 'Research Competitors',
-    description: 'Analyze top 3 competitors in the market.',
-    status: 'todo',
-    priority: 'High',
-    assignee: 'Alice',
-    dueDate: '2023-10-15',
-  },
-  {
-    id: 'task-2',
-    title: 'Design DB Schema',
-    description: 'Create initial MongoDB schema for users and tasks.',
-    status: 'in-progress',
-    priority: 'High',
-    assignee: 'Bob',
-    dueDate: '2023-10-20',
-  },
-  {
-    id: 'task-3',
-    title: 'Setup CI/CD',
-    description: 'Configure GitHub Actions for automated deployment.',
-    status: 'done',
-    priority: 'Medium',
-    assignee: 'Charlie',
-    dueDate: '2023-10-10',
-  }
-];
+const Task = require('../models/Task');
 
 const getTasks = async (req, res, next) => {
   try {
     const status = req.query.status;
+    let tasks;
     if (status) {
-      const filteredTasks = tasks.filter(t => t.status === status);
-      return res.json(filteredTasks);
+      tasks = await Task.find({ status });
+    } else {
+      tasks = await Task.find({});
     }
     res.json(tasks);
   } catch (error) {
@@ -50,17 +24,15 @@ const createTask = async (req, res, next) => {
       throw new Error('Task title is required');
     }
 
-    const newTask = {
-      id: `task-${Date.now()}`,
+    const newTask = await Task.create({
       title,
-      description: description || '',
-      status: status || 'todo',
-      priority: priority || 'Medium',
-      assignee: assignee || '',
-      dueDate: dueDate || ''
-    };
+      description,
+      status,
+      priority,
+      assignee,
+      dueDate
+    });
 
-    tasks.push(newTask);
     res.status(201).json(newTask);
   } catch (error) {
     next(error);
@@ -70,20 +42,32 @@ const createTask = async (req, res, next) => {
 const updateTask = async (req, res, next) => {
   try {
     const taskId = req.params.id;
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    const { __v, ...updateData } = req.body;
 
-    if (taskIndex === -1) {
-      res.status(404);
-      throw new Error('Task not found');
+    if (__v === undefined) {
+      res.status(400);
+      throw new Error('Version key (__v) is required for update');
     }
 
-    const updatedTask = {
-      ...tasks[taskIndex],
-      ...req.body,
-      id: taskId // Ensure ID cannot be changed
-    };
+    // Try to update the task matching both id and the provided version
+    const updatedTask = await Task.findOneAndUpdate(
+      { _id: taskId, __v: __v },
+      { $set: updateData, $inc: { __v: 1 } },
+      { new: true, runValidators: true }
+    );
 
-    tasks[taskIndex] = updatedTask;
+    if (!updatedTask) {
+      // Check if task exists to differentiate between 404 and 409
+      const existingTask = await Task.findById(taskId);
+      if (!existingTask) {
+        res.status(404);
+        throw new Error('Task not found');
+      } else {
+        res.status(409);
+        throw new Error('Conflict: Task has been updated by another user. Please refresh and try again.');
+      }
+    }
+
     res.json(updatedTask);
   } catch (error) {
     next(error);
@@ -93,14 +77,13 @@ const updateTask = async (req, res, next) => {
 const deleteTask = async (req, res, next) => {
   try {
     const taskId = req.params.id;
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    const deletedTask = await Task.findByIdAndDelete(taskId);
 
-    if (taskIndex === -1) {
+    if (!deletedTask) {
       res.status(404);
       throw new Error('Task not found');
     }
 
-    tasks = tasks.filter(t => t.id !== taskId);
     res.json({ message: 'Task removed', id: taskId });
   } catch (error) {
     next(error);

@@ -1,40 +1,13 @@
-let tasks = [
-  {
-    id: 'task-1',
-    title: 'Research Competitors',
-    description: 'Analyze top 3 competitors in the market.',
-    status: 'todo',
-    priority: 'High',
-    assignee: 'Alice',
-    dueDate: '2023-10-15',
-  },
-  {
-    id: 'task-2',
-    title: 'Design DB Schema',
-    description: 'Create initial MongoDB schema for users and tasks.',
-    status: 'in-progress',
-    priority: 'High',
-    assignee: 'Bob',
-    dueDate: '2023-10-20',
-  },
-  {
-    id: 'task-3',
-    title: 'Setup CI/CD',
-    description: 'Configure GitHub Actions for automated deployment.',
-    status: 'done',
-    priority: 'Medium',
-    assignee: 'Charlie',
-    dueDate: '2023-10-10',
-  }
-];
+const Task = require('../models/Task');
 
 const getTasks = async (req, res, next) => {
   try {
     const status = req.query.status;
+    let query = { user: req.user.id };
     if (status) {
-      const filteredTasks = tasks.filter(t => t.status === status);
-      return res.json(filteredTasks);
+      query.status = status;
     }
+    const tasks = await Task.find(query);
     res.json(tasks);
   } catch (error) {
     next(error);
@@ -50,17 +23,16 @@ const createTask = async (req, res, next) => {
       throw new Error('Task title is required');
     }
 
-    const newTask = {
-      id: `task-${Date.now()}`,
+    const newTask = await Task.create({
       title,
-      description: description || '',
-      status: status || 'todo',
-      priority: priority || 'Medium',
-      assignee: assignee || '',
-      dueDate: dueDate || ''
-    };
+      description,
+      status,
+      priority,
+      assignee,
+      dueDate,
+      user: req.user.id // Fix: Automatically attach req.user.id as the task's owner
+    });
 
-    tasks.push(newTask);
     res.status(201).json(newTask);
   } catch (error) {
     next(error);
@@ -70,20 +42,39 @@ const createTask = async (req, res, next) => {
 const updateTask = async (req, res, next) => {
   try {
     const taskId = req.params.id;
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    const { __v, ...updateData } = req.body;
 
-    if (taskIndex === -1) {
+    if (__v === undefined) {
+      res.status(400);
+      throw new Error('Version key (__v) is required for update');
+    }
+
+    // Fix: First, find the task to check for existence and verify ownership
+    const task = await Task.findById(taskId);
+    if (!task) {
       res.status(404);
       throw new Error('Task not found');
     }
 
-    const updatedTask = {
-      ...tasks[taskIndex],
-      ...req.body,
-      id: taskId // Ensure ID cannot be changed
-    };
+    // Fix: Authorization check to prevent modifications by unauthorized users
+    if (task.user.toString() !== req.user.id) {
+      res.status(403);
+      throw new Error('User not authorized to update this task');
+    }
 
-    tasks[taskIndex] = updatedTask;
+    // Try to update the task matching both id and the provided version
+    const updatedTask = await Task.findOneAndUpdate(
+      { _id: taskId, __v: __v },
+      { $set: updateData, $inc: { __v: 1 } },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedTask) {
+      // Since the task is already proven to exist, a null updatedTask means an OCC version conflict
+      res.status(409);
+      throw new Error('Conflict: Task has been updated by another user. Please refresh and try again.');
+    }
+
     res.json(updatedTask);
   } catch (error) {
     next(error);
@@ -93,14 +84,21 @@ const updateTask = async (req, res, next) => {
 const deleteTask = async (req, res, next) => {
   try {
     const taskId = req.params.id;
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
-
-    if (taskIndex === -1) {
+    // Fix: First, find the task to check for existence and verify ownership
+    const task = await Task.findById(taskId);
+    if (!task) {
       res.status(404);
       throw new Error('Task not found');
     }
 
-    tasks = tasks.filter(t => t.id !== taskId);
+    // Fix: Authorization check to prevent deletions by unauthorized users
+    if (task.user.toString() !== req.user.id) {
+      res.status(403);
+      throw new Error('User not authorized to delete this task');
+    }
+
+    await Task.findByIdAndDelete(taskId);
+
     res.json({ message: 'Task removed', id: taskId });
   } catch (error) {
     next(error);

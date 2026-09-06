@@ -2,12 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { errorHandler } = require('./middleware/errorMiddleware');
+const connectDB = require('./config/db');
 
 // Route imports
 const authRoutes = require('./routes/authRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 
 dotenv.config();
+
+// Connect to database
+connectDB();
 
 const app = express();
 

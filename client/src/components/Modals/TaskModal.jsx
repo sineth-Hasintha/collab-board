@@ -100,7 +100,7 @@ const TaskModal = ({ task, isOpen, onClose, onSave, onDelete }) => {
               <button
                 type="button"
                 className="btn btn-danger"
-                onClick={() => onDelete(task.id)}
+                onClick={() => onDelete(task._id || task.id)}
               >
                 Delete
               </button>

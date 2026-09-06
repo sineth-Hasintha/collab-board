@@ -3,12 +3,11 @@ const Task = require('../models/Task');
 const getTasks = async (req, res, next) => {
   try {
     const status = req.query.status;
-    let tasks;
+    let query = { user: req.user.id };
     if (status) {
-      tasks = await Task.find({ status });
-    } else {
-      tasks = await Task.find({});
+      query.status = status;
     }
+    const tasks = await Task.find(query);
     res.json(tasks);
   } catch (error) {
     next(error);
@@ -30,7 +29,8 @@ const createTask = async (req, res, next) => {
       status,
       priority,
       assignee,
-      dueDate
+      dueDate,
+      user: req.user.id // Fix: Automatically attach req.user.id as the task's owner
     });
 
     res.status(201).json(newTask);
@@ -49,6 +49,19 @@ const updateTask = async (req, res, next) => {
       throw new Error('Version key (__v) is required for update');
     }
 
+    // Fix: First, find the task to check for existence and verify ownership
+    const task = await Task.findById(taskId);
+    if (!task) {
+      res.status(404);
+      throw new Error('Task not found');
+    }
+
+    // Fix: Authorization check to prevent modifications by unauthorized users
+    if (task.user.toString() !== req.user.id) {
+      res.status(403);
+      throw new Error('User not authorized to update this task');
+    }
+
     // Try to update the task matching both id and the provided version
     const updatedTask = await Task.findOneAndUpdate(
       { _id: taskId, __v: __v },
@@ -57,15 +70,9 @@ const updateTask = async (req, res, next) => {
     );
 
     if (!updatedTask) {
-      // Check if task exists to differentiate between 404 and 409
-      const existingTask = await Task.findById(taskId);
-      if (!existingTask) {
-        res.status(404);
-        throw new Error('Task not found');
-      } else {
-        res.status(409);
-        throw new Error('Conflict: Task has been updated by another user. Please refresh and try again.');
-      }
+      // Since the task is already proven to exist, a null updatedTask means an OCC version conflict
+      res.status(409);
+      throw new Error('Conflict: Task has been updated by another user. Please refresh and try again.');
     }
 
     res.json(updatedTask);
@@ -77,12 +84,20 @@ const updateTask = async (req, res, next) => {
 const deleteTask = async (req, res, next) => {
   try {
     const taskId = req.params.id;
-    const deletedTask = await Task.findByIdAndDelete(taskId);
-
-    if (!deletedTask) {
+    // Fix: First, find the task to check for existence and verify ownership
+    const task = await Task.findById(taskId);
+    if (!task) {
       res.status(404);
       throw new Error('Task not found');
     }
+
+    // Fix: Authorization check to prevent deletions by unauthorized users
+    if (task.user.toString() !== req.user.id) {
+      res.status(403);
+      throw new Error('User not authorized to delete this task');
+    }
+
+    await Task.findByIdAndDelete(taskId);
 
     res.json({ message: 'Task removed', id: taskId });
   } catch (error) {

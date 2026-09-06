@@ -4,9 +4,9 @@ const TaskModal = ({ task, isOpen, onClose, onSave, onDelete }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    status: 'todo',
+    status: 'To Do',
     priority: 'Medium',
-    assignedTo: '',
+    assignee: '',
     dueDate: ''
   });
 
@@ -17,9 +17,9 @@ const TaskModal = ({ task, isOpen, onClose, onSave, onDelete }) => {
       setFormData({
         title: '',
         description: '',
-        status: 'todo',
+        status: 'To Do',
         priority: 'Medium',
-        assignedTo: '',
+        assignee: '',
         dueDate: ''
       });
     }
@@ -70,9 +70,9 @@ const TaskModal = ({ task, isOpen, onClose, onSave, onDelete }) => {
             <div className="form-group" style={{ flex: 1 }}>
               <label htmlFor="status">Status</label>
               <select name="status" id="status" value={formData.status} onChange={handleChange}>
-                <option value="todo">To Do</option>
-                <option value="in-progress">In Progress</option>
-                <option value="done">Done</option>
+                <option value="To Do">To Do</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Done">Done</option>
               </select>
             </div>
             <div className="form-group" style={{ flex: 1 }}>
@@ -86,12 +86,12 @@ const TaskModal = ({ task, isOpen, onClose, onSave, onDelete }) => {
             </div>
           </div>
           <div className="form-group">
-            <label htmlFor="assignedTo">Assign To</label>
+            <label htmlFor="assignee">Assign To</label>
             <input
               type="text"
-              id="assignedTo"
-              name="assignedTo"
-              value={formData.assignedTo}
+              id="assignee"
+              name="assignee"
+              value={formData.assignee}
               onChange={handleChange}
             />
           </div>

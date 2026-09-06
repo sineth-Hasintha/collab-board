@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 
 const taskSchema = new mongoose.Schema(
   {
+    // Fix: Added user reference to enforce task ownership and privacy
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: 'User',
+    },
     title: {
       type: String,
       required: [true, 'Please add a title'],
